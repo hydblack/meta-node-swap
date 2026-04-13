@@ -349,7 +349,7 @@ export default function PositionList() {
         columns={columns}
         loading={isLoading}
         skeletonRows={5}
-        emptyText="暂无流动性仓位"
+        emptyText="No data"
         pagination={paginationConfig}
         emptyRender={
           !isLoading && positions.length === 0

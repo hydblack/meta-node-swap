@@ -3,7 +3,7 @@ import { formatUnits } from "viem";
 import { MAX_TICK, MIN_TICK, Q96 } from "./constant";
 import JSBI from "jsbi";
 
-export function priceToSqrtPriceX96(price: number): JSBI{
+export function priceToSqrtPriceX96(price: number): JSBI {
   if (price <= 0) {
     return JSBI.BigInt(0);
   }
@@ -84,7 +84,7 @@ export const truncateAddr = (addr: string): string => {
  */
 export const calculateMinimumReceived = (
   amountOutExpected: bigint,
-  slippageTolerance: number
+  slippageTolerance: number,
 ): bigint => {
   const bps = Math.round(slippageTolerance * 100); // convert % to basis points
   return (amountOutExpected * BigInt(10000 - bps)) / 10000n;
@@ -92,4 +92,19 @@ export const calculateMinimumReceived = (
 
 export const isAddress = (val: string): val is `0x${string}` => {
   return /^0x[0-9a-fA-F]{40}$/.test(val);
+};
+
+export const fmtBalance = (raw: bigint, decimals: number): string => {
+  try {
+    const n = Number(formatUnits(raw, decimals));
+    if (n === 0) return "0";
+    if (n < 0.0001) return "<0.0001";
+    return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  } catch {
+    return "0";
+  }
+};
+
+export const fmtFee = (fee: number): string => {
+  return (fee / 10000).toFixed(2) + "%";
 }

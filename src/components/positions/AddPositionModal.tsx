@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useReadContracts } from "wagmi";
-import { formatUnits } from "viem";
 import {
   useFilteredPools,
   useMintPosition,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/hooks/useAddPosition";
 import { ERC20_ABI } from "@/lib/contracts/abis";
 import { CONTRACT_ADDRESSES, TOKEN_LIST } from "@/lib/utils/constant";
-import { truncateAddr } from "@/lib/utils/utils";
+import { fmtBalance, fmtFee, truncateAddr } from "@/lib/utils/utils";
 
 interface Props {
   open: boolean;
@@ -19,32 +18,12 @@ interface Props {
   onSuccess?: () => void;
 }
 
-// ─────────────────────────── 辅助：格式化余额 ────────────────────────────
-function fmtBalance(raw: bigint, decimals: number): string {
-  try {
-    const n = Number(formatUnits(raw, decimals));
-    if (n === 0) return "0";
-    if (n < 0.0001) return "<0.0001";
-    return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
-  } catch {
-    return "0";
-  }
-}
-
-// ─────────────────────────── 辅助：费率显示 ──────────────────────────────
-function fmtFee(fee: number): string {
-  return (fee / 10000).toFixed(2) + "%";
-}
-
-// ─────────────────────────── 组件 ────────────────────────────────────────
 export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
   const { address } = useAccount();
 
-  // ---- 选中的 token ----
   const [token0Addr, setToken0Addr] = useState<`0x${string}` | "">("");
   const [token1Addr, setToken1Addr] = useState<`0x${string}` | "">("");
 
-  // ---- token 选项：直接来自 TOKEN_LIST，token1 排除已选的 token0 ----
   const token0Options = TOKEN_LIST;
   const token1Options = useMemo(
     () =>
@@ -54,7 +33,6 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     [token0Addr],
   );
 
-  // token0 变化时清空 token1
   useEffect(() => {
     setToken1Addr("");
     setSelectedPool(null);
@@ -68,16 +46,13 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     setAmount1("");
   }, [token1Addr]);
 
-  // ---- 根据 token pair 过滤出可用的池 ----
   const { filteredPools, isLoading: poolsLoading } = useFilteredPools(
     token0Addr || undefined,
     token1Addr || undefined,
   );
 
-  // ---- 选中的池（费率 + index）----
   const [selectedPool, setSelectedPool] = useState<RawPoolInfo | null>(null);
 
-  // 只有一个池时自动选中
   useEffect(() => {
     if (filteredPools.length === 1) {
       setSelectedPool(filteredPools[0]);
@@ -86,7 +61,6 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     }
   }, [filteredPools]);
 
-  // ---- 查询 TOKEN_LIST 中的 meta ----
   const resolveToken = (addr: string) =>
     TOKEN_LIST.find((t) => t.address.toLowerCase() === addr.toLowerCase());
 
@@ -96,7 +70,6 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
   const decimals0 = token0Meta?.decimals ?? 18;
   const decimals1 = token1Meta?.decimals ?? 18;
 
-  // ---- 批量查询余额 ----
   const balanceContracts = useMemo(() => {
     if (!address) return [];
     const list: any[] = [];
@@ -135,7 +108,6 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     return balanceData[idx].result as bigint;
   }, [token0Addr, token1Addr, balanceData]);
 
-  // ---- 批量查询 allowance ----
   const allowanceContracts = useMemo(() => {
     if (!address) return [];
     const spender = CONTRACT_ADDRESSES.PositionManager;
@@ -180,11 +152,9 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     return allowanceData[idx].result as bigint;
   }, [token0Addr, token1Addr, allowanceData]);
 
-  // ---- 输入金额 ----
   const [amount0, setAmount0] = useState("");
   const [amount1, setAmount1] = useState("");
 
-  // ---- approve hooks ----
   const {
     approve: approveToken,
     isPending: isApprovePending,
@@ -193,15 +163,13 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     reset: resetApprove,
   } = usePositionTokenApprove();
 
-  // approve 成功后刷新 allowance
   useEffect(() => {
     if (isApproveSuccess) {
       refetchAllowance();
       resetApprove();
     }
-  }, [isApproveSuccess]); // eslint-disable-line
+  }, [isApproveSuccess]);
 
-  // ---- mint hook ----
   const {
     mint,
     isPending: isMintPending,
@@ -211,15 +179,13 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     reset: resetMint,
   } = useMintPosition();
 
-  // mint 成功后关闭弹窗
   useEffect(() => {
     if (isMintSuccess) {
       onSuccess?.();
       handleClose();
     }
-  }, [isMintSuccess]); // eslint-disable-line
+  }, [isMintSuccess]);
 
-  // ---- 判断是否需要 approve ----
   const parsedAmount0 = useMemo<bigint>(() => {
     if (!amount0 || !token0Addr) return 0n;
     try {
@@ -241,7 +207,6 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
   const needApprove0 = parsedAmount0 > 0n && allowance0 < parsedAmount0;
   const needApprove1 = parsedAmount1 > 0n && allowance1 < parsedAmount1;
 
-  // ---- 表单校验 ----
   const canSubmit = useMemo(() => {
     return (
       !!token0Addr &&
@@ -266,10 +231,9 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
     isMintConfirming,
   ]);
 
-  // ---- 操作 ----
   const handleApprove0 = () => {
     if (!token0Addr) return;
-    approveToken(token0Addr as `0x${string}`, parsedAmount0 * 2n); // approve 2x 减少后续操作
+    approveToken(token0Addr as `0x${string}`, parsedAmount0 * 2n);
   };
 
   const handleApprove1 = () => {
@@ -342,8 +306,8 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-5">
-          {/* ── Token 选择区 ── */}
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-5">
+          {/* ── Token Selection ── */}
           <div className="space-y-3">
             <p className="text-sm font-semibold opacity-70 uppercase tracking-wide">
               Select Token Pair
@@ -403,7 +367,7 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* ── 费率 / 池选择 ── */}
+          {/* ── Fee Tier / Pool Selection ── */}
           {token0Addr && token1Addr && (
             <div className="space-y-2">
               <p className="text-sm font-semibold opacity-70 uppercase tracking-wide">
@@ -445,7 +409,7 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* ── 输入数量 ── */}
+          {/* ── Input Amounts ── */}
           {selectedPool && (
             <div className="space-y-3">
               <p className="text-sm font-semibold opacity-70 uppercase tracking-wide">
@@ -546,7 +510,7 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* ── 池信息摘要 ── */}
+          {/* ── Pool Information Summary ── */}
           {selectedPool && (
             <div className="bg-base-200 rounded-xl px-4 py-3 space-y-1.5 text-sm">
               <div className="flex justify-between">
@@ -566,7 +530,7 @@ export default function AddPositionModal({ open, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* ── 错误提示 ── */}
+          {/* ── Error Message ── */}
           {mintError && (
             <div className="alert alert-error text-xs py-2">
               <svg

@@ -264,7 +264,7 @@ export default function PoolList() {
         columns={columns}
         loading={isLoading}
         skeletonRows={5}
-        emptyText="暂无流动性池数据"
+        emptyText="No data"
         pagination={paginationConfig}
       />
 

@@ -223,7 +223,7 @@ export default function AddPoolModal({
   return (
     <dialog ref={dialogRef} className="modal" onClose={handleClose}>
       <div className="modal-box w-full max-w-lg">
-        {/* 标题 */}
+        {/* Title */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-lg">Add Pool</h3>
           <button
@@ -235,7 +235,7 @@ export default function AddPoolModal({
           </button>
         </div>
 
-        {/* 成功状态 */}
+        {/* Success State */}
         {isSuccess ? (
           <div className="flex flex-col items-center gap-3 py-8">
             <div className="text-5xl">✅</div>
@@ -243,12 +243,12 @@ export default function AddPoolModal({
               Pool created successfully!
             </p>
             <p className="text-xs opacity-60 font-mono break-all text-center">
-              Tx: {/* hash 在成功后展示 */}
+              Tx: {/* hash */}
             </p>
           </div>
         ) : (
           <>
-            {/* Token 选择 */}
+            {/* Token Selection */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <TokenSelect
                 label="Token 0"
@@ -287,7 +287,7 @@ export default function AddPoolModal({
               </div>
             </div>
 
-            {/* 价格设置 */}
+            {/* Price Settings */}
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="form-control">
                 <label className="label py-1">
@@ -339,7 +339,7 @@ export default function AddPoolModal({
               </div>
             </div>
 
-            {/* 派生信息展示 */}
+            {/* Derived Information Display */}
             {!validationError && (
               <div className="bg-base-200 rounded-lg p-3 mb-4 space-y-1 text-xs font-mono">
                 <div className="flex justify-between">
@@ -371,7 +371,7 @@ export default function AddPoolModal({
               </div>
             )}
 
-            {/* 错误提示 */}
+            {/* Error Message */}
             {validationError && (
               <div className="alert alert-warning alert-sm py-2 mb-4 text-xs">
                 <svg
@@ -391,7 +391,7 @@ export default function AddPoolModal({
               </div>
             )}
 
-            {/* 合约错误 */}
+            {/* Contract Error */}
             {error && (
               <div className="alert alert-error alert-sm py-2 mb-4 text-xs">
                 <svg
@@ -415,7 +415,7 @@ export default function AddPoolModal({
               </div>
             )}
 
-            {/* 操作按钮 */}
+            {/* Operation Buttons */}
             <div className="modal-action mt-2">
               <button
                 className="btn btn-ghost btn-sm"
@@ -442,7 +442,7 @@ export default function AddPoolModal({
         )}
       </div>
 
-      {/* 背景遮罩点击关闭 */}
+      {/* Background Overlay Click to Close */}
       <form method="dialog" className="modal-backdrop">
         <button onClick={handleClose}>close</button>
       </form>

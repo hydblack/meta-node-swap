@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import {
   useAccount,
-  useReadContracts,
   useWriteContract,
   useWaitForTransactionReceipt,
   useReadContract,
@@ -16,7 +15,6 @@ import {
 } from "../contracts/abis";
 import { CONTRACT_ADDRESSES } from "../utils/constant";
 
-// PoolInfo 从合约返回的原始结构
 export interface RawPoolInfo {
   pool: `0x${string}`;
   token0: `0x${string}`;
@@ -36,7 +34,6 @@ export interface PairOption {
   token1: `0x${string}`;
 }
 
-/** 获取所有交易对（用于 token 下拉框联动） */
 export function useGetPairs() {
   const { data, isLoading } = useReadContract({
     address: CONTRACT_ADDRESSES.PoolManager,
@@ -52,7 +49,6 @@ export function useGetPairs() {
   return { pairs, isLoading };
 }
 
-/** 获取所有交易池（用于根据选定 token pair 过滤出对应的池与费率） */
 export function useGetAllPools() {
   const { data, isLoading } = useReadContract({
     address: CONTRACT_ADDRESSES.PoolManager,
@@ -80,7 +76,6 @@ export function useGetAllPools() {
   return { pools, isLoading };
 }
 
-/** 根据选定的 token0/token1 过滤出可用的池列表（含费率、index） */
 export function useFilteredPools(
   token0?: `0x${string}`,
   token1?: `0x${string}`
@@ -101,7 +96,6 @@ export function useFilteredPools(
   return { filteredPools: filtered, isLoading };
 }
 
-/** 查询某个 ERC20 token 对当前用户的余额（Position 模块专用） */
 export function usePositionTokenBalance(
   tokenAddress?: `0x${string}`,
   decimals = 18
@@ -119,7 +113,6 @@ export function usePositionTokenBalance(
   const formatted = useMemo(() => {
     if (balance === undefined || balance === null) return "0";
     const raw = (balance as bigint).toString();
-    // 简单格式化：转换为 decimals 精度
     try {
       const num = Number(balance as bigint) / Math.pow(10, decimals);
       return num.toFixed(4);
@@ -136,7 +129,6 @@ export function usePositionTokenBalance(
   };
 }
 
-/** 查询 token 对 PositionManager 的授权额度（Position 模块专用） */
 export function usePositionTokenAllowance(tokenAddress?: `0x${string}`) {
   const { address } = useAccount();
   const spender = CONTRACT_ADDRESSES.PositionManager;
@@ -156,7 +148,6 @@ export function usePositionTokenAllowance(tokenAddress?: `0x${string}`) {
   };
 }
 
-/** approve ERC20 token 给 PositionManager（Position 模块专用） */
 export function usePositionTokenApprove() {
   const {
     writeContract,
@@ -185,15 +176,14 @@ export interface MintPositionParams {
   token0: `0x${string}`;
   token1: `0x${string}`;
   index: number;
-  amount0Desired: string; // human-readable
-  amount1Desired: string; // human-readable
+  amount0Desired: string;
+  amount1Desired: string;
   decimals0: number;
   decimals1: number;
   recipient: `0x${string}`;
-  deadlineSeconds?: number; // default 1200 (20 min)
+  deadlineSeconds?: number;
 }
 
-/** 调用 PositionManager.mint() 新增仓位 */
 export function useMintPosition() {
   const {
     writeContract,
@@ -240,4 +230,57 @@ export function useMintPosition() {
   };
 
   return { mint, isPending, isConfirming, isSuccess, hash, receipt, error, reset };
+}
+
+export function useCollectPosition() {
+  const { address } = useAccount();
+  const {
+    writeContract,
+    data: hash,
+    isPending,
+    reset,
+    error,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const collect = (positionId: bigint, recipient?: `0x${string}`) => {
+    const to = recipient ?? address;
+    if (!to) throw new Error("No recipient address");
+    writeContract({
+      address: CONTRACT_ADDRESSES.PositionManager,
+      abi: POSITIONMANAGER_ABI,
+      functionName: "collect",
+      args: [positionId, to],
+    });
+  };
+
+  return { collect, isPending, isConfirming, isSuccess, hash, error, reset };
+}
+
+export function useBurnPosition() {
+  const {
+    writeContract,
+    data: hash,
+    isPending,
+    reset,
+    error,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const burn = (positionId: bigint) => {
+    writeContract({
+      address: CONTRACT_ADDRESSES.PositionManager,
+      abi: POSITIONMANAGER_ABI,
+      functionName: "burn",
+      args: [positionId],
+    });
+  };
+
+  return { burn, isPending, isConfirming, isSuccess, hash, error, reset };
 }

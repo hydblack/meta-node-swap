@@ -4,7 +4,7 @@ import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { POOLMANAGER_ABI } from '../contracts/abis';
 import { CONTRACT_ADDRESSES } from '../utils/constant';
 
-export interface CreatePoolParams {
+export interface AddPoolParams {
   token0: `0x${string}`;
   token1: `0x${string}`;
   fee: number;
@@ -13,7 +13,7 @@ export interface CreatePoolParams {
   sqrtPriceX96: bigint;
 }
 
-export function useCreatePool() {
+export function useAddPool() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
 
   const {
@@ -22,7 +22,7 @@ export function useCreatePool() {
     data: receipt,
   } = useWaitForTransactionReceipt({ hash });
 
-  const createPool = (params: CreatePoolParams) => {
+  const addPool = (params: AddPoolParams) => {
     writeContract({
       address: CONTRACT_ADDRESSES.PoolManager,
       abi: POOLMANAGER_ABI,
@@ -41,7 +41,7 @@ export function useCreatePool() {
   };
 
   return {
-    createPool,
+    addPool,
     isPending,
     isConfirming,
     isSuccess,

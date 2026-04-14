@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useReadContracts } from "wagmi";
-import {
-  POOLMANAGER_ABI,
-  ERC20_ABI,
-} from "@/lib/contracts/abis";
+import { POOLMANAGER_ABI } from "@/lib/contracts/abis";
 import DataTable, { Column, PaginationConfig } from "../ui/DataTable";
 import AddPoolModal from "./AddPoolModal";
 import {
@@ -16,6 +13,7 @@ import {
   truncateAddr,
 } from "@/lib/utils/utils";
 import { CONTRACT_ADDRESSES, DEFAULT_PAGE_SIZE, Q96 } from "@/lib/utils/constant";
+import { useTokenMeta } from "@/lib/hooks";
 
 export interface PoolInfo {
   index: number;
@@ -58,57 +56,7 @@ export default function PoolList() {
   }, [data]);
   console.log("getAllPools----------------", rawPools);
 
-  const tokenAddresses = useMemo(() => {
-    if (!rawPools) return [];
-    const set = new Set<string>();
-    for (const pool of rawPools) {
-      set.add(pool.token0);
-      set.add(pool.token1);
-    }
-    return Array.from(set) as `0x${string}`[];
-  }, [rawPools]);
-
-  const symbolResults = useReadContracts({
-    contracts: tokenAddresses.map((addr) => ({
-      address: addr,
-      abi: ERC20_ABI,
-      functionName: "symbol",
-    })),
-    query: { enabled: tokenAddresses.length > 0 },
-  });
-
-  const decimalsResults = useReadContracts({
-    contracts: tokenAddresses.map((addr) => ({
-      address: addr,
-      abi: ERC20_ABI,
-      functionName: "decimals",
-    })),
-    query: { enabled: tokenAddresses.length > 0 },
-  });
-
-  const symbolMap = useMemo(() => {
-    const map = new Map<string, string>();
-    if (!Array.isArray(symbolResults.data)) return map;
-    for (let i = 0; i < tokenAddresses.length; i++) {
-      const result = symbolResults.data[i];
-      if (result.status === "success" && typeof result.result === "string") {
-        map.set(tokenAddresses[i].toLowerCase(), result.result);
-      }
-    }
-    return map;
-  }, [symbolResults.data, tokenAddresses]);
-
-  const decimalsMap = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!Array.isArray(decimalsResults.data)) return map;
-    for (let i = 0; i < tokenAddresses.length; i++) {
-      const result = decimalsResults.data[i];
-      if (result.status === "success" && typeof result.result === "number") {
-        map.set(tokenAddresses[i].toLowerCase(), result.result);
-      }
-    }
-    return map;
-  }, [decimalsResults.data, tokenAddresses]);
+  const { symbolMap, decimalsMap } = useTokenMeta(rawPools);
 
   useEffect(() => {
     let formattedPools: PoolInfo[] = [];

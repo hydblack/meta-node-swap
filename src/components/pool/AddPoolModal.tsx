@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useCreatePool, CreatePoolParams } from "@/lib/hooks/useCreatePool";
+import { useAddPool, AddPoolParams } from "@/lib/hooks/useAddPool";
 import { FEE_TIERS, TOKEN_LIST } from "@/lib/utils/constant";
 import { TickMath } from "@uniswap/v3-sdk";
 import {
@@ -43,8 +43,8 @@ export default function AddPoolModal({
     priceUpper: "2",
   });
 
-  const { createPool, isPending, isConfirming, isSuccess, error, reset } =
-    useCreatePool();
+  const { addPool, isPending, isConfirming, isSuccess, error, reset } =
+    useAddPool();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -188,7 +188,7 @@ export default function AddPoolModal({
       tickUpper,
       sqrtPriceX96,
     };
-    createPool(params as CreatePoolParams);
+    addPool(params as AddPoolParams);
   };
 
   const TokenSelect = ({

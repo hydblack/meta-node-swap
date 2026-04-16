@@ -77,19 +77,6 @@ export const truncateAddr = (addr: string): string => {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 };
 
-/**
- * 根据预期输出和滑点容忍度计算最小接受输出量
- * @param amountOutExpected 预期输出 (bigint)
- * @param slippageTolerance 滑点百分比, e.g. 0.5 表示 0.5%
- */
-export const calculateMinimumReceived = (
-  amountOutExpected: bigint,
-  slippageTolerance: number,
-): bigint => {
-  const bps = Math.round(slippageTolerance * 100); // convert % to basis points
-  return (amountOutExpected * BigInt(10000 - bps)) / 10000n;
-};
-
 export const isAddress = (val: string): val is `0x${string}` => {
   return /^0x[0-9a-fA-F]{40}$/.test(val);
 };

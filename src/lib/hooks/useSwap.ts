@@ -1,15 +1,39 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from "react";
 import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
   usePublicClient,
   useAccount,
-} from 'wagmi';
-import { POOLMANAGER_ABI, SWAPROUTER_ABI, ERC20_ABI } from '../contracts/abis';
-import { CONTRACT_ADDRESSES } from '../utils/constant';
+} from "wagmi";
+import { POOLMANAGER_ABI, SWAPROUTER_ABI, ERC20_ABI } from "../contracts/abis";
+import {
+  CONTRACT_ADDRESSES,
+  MAX_SQRT_PRICE,
+  MIN_SQRT_PRICE,
+} from "../utils/constant";
+
+/**
+ * 根据交易方向返回 sqrtPriceLimitX96。
+ *
+ * 合约断言 (SPL)：
+ *   zeroForOne → limit > MIN_SQRT_PRICE → 使用 MIN_SQRT_PRICE + 1
+ *   oneForZero → limit < MAX_SQRT_PRICE → 使用 MAX_SQRT_PRICE - 1
+ */
+function resolveSqrtPriceLimit(
+  pools: PoolInfo[],
+  tokenIn: `0x${string}`,
+): bigint {
+  if (pools.length === 0) return MIN_SQRT_PRICE + 1n;
+  // 取流动性最大的池子判断交易方向
+  const best = [...pools].sort((a, b) =>
+    b.liquidity > a.liquidity ? 1 : b.liquidity < a.liquidity ? -1 : 0,
+  )[0];
+  const zeroForOne = tokenIn.toLowerCase() === best.token0.toLowerCase();
+  return zeroForOne ? MIN_SQRT_PRICE + 1n : MAX_SQRT_PRICE - 1n;
+}
 
 export interface PoolInfo {
   pool: `0x${string}`;
@@ -25,7 +49,7 @@ export interface PoolInfo {
   liquidity: bigint;
 }
 
-export type SwapMode = 'exactIn' | 'exactOut';
+export type SwapMode = "exactIn" | "exactOut";
 
 const MAX_HOPS = 3;
 
@@ -54,10 +78,14 @@ export function usePoolsForPair(
   tokenIn: `0x${string}` | undefined,
   tokenOut: `0x${string}` | undefined,
 ) {
-  const { data: allPools, isLoading, refetch } = useReadContract({
+  const {
+    data: allPools,
+    isLoading,
+    refetch,
+  } = useReadContract({
     address: CONTRACT_ADDRESSES.PoolManager,
     abi: POOLMANAGER_ABI,
-    functionName: 'getAllPools',
+    functionName: "getAllPools",
     query: { enabled: true },
   });
 
@@ -70,8 +98,7 @@ export function usePoolsForPair(
         const t0 = p.token0.toLowerCase();
         const t1 = p.token1.toLowerCase();
         return (
-          (t0 === addrIn && t1 === addrOut) ||
-          (t0 === addrOut && t1 === addrIn)
+          (t0 === addrIn && t1 === addrOut) || (t0 === addrOut && t1 === addrIn)
         );
       })
       .map((p) => ({
@@ -101,8 +128,13 @@ export function useSwap() {
   const [isQuoting, setIsQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  const { writeContractAsync, data: hash, isPending, error: writeError, reset } =
-    useWriteContract();
+  const {
+    writeContractAsync,
+    data: hash,
+    isPending,
+    error: writeError,
+    reset,
+  } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
@@ -113,32 +145,36 @@ export function useSwap() {
     async (params: {
       tokenIn: `0x${string}`;
       tokenOut: `0x${string}`;
+      pools: PoolInfo[];
       indexPath: number[];
       amountIn: bigint;
-      sqrtPriceLimitX96?: bigint;
     }): Promise<bigint | null> => {
       if (!publicClient) return null;
       setIsQuoting(true);
       setQuoteError(null);
       try {
+        const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
+          params.pools,
+          params.tokenIn,
+        );
         const result = await publicClient.simulateContract({
           address: routerAddress,
           abi: SWAPROUTER_ABI,
-          functionName: 'quoteExactInput',
+          functionName: "quoteExactInput",
           args: [
             {
               tokenIn: params.tokenIn,
               tokenOut: params.tokenOut,
               indexPath: params.indexPath.map((i) => i as unknown as number),
               amountIn: params.amountIn,
-              sqrtPriceLimitX96: params.sqrtPriceLimitX96 ?? 0n,
+              sqrtPriceLimitX96,
             },
           ],
         });
         return result.result as bigint;
       } catch (e: any) {
-        console.error('quoteExactInput error:', e);
-        setQuoteError(e?.shortMessage ?? e?.message ?? 'Quote failed');
+        console.error("quoteExactInput error:", e);
+        setQuoteError(e?.shortMessage ?? e?.message ?? "Quote failed");
         return null;
       } finally {
         setIsQuoting(false);
@@ -151,32 +187,36 @@ export function useSwap() {
     async (params: {
       tokenIn: `0x${string}`;
       tokenOut: `0x${string}`;
+      pools: PoolInfo[];
       indexPath: number[];
       amountOut: bigint;
-      sqrtPriceLimitX96?: bigint;
     }): Promise<bigint | null> => {
       if (!publicClient) return null;
       setIsQuoting(true);
       setQuoteError(null);
       try {
+        const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
+          params.pools,
+          params.tokenIn,
+        );
         const result = await publicClient.simulateContract({
           address: routerAddress,
           abi: SWAPROUTER_ABI,
-          functionName: 'quoteExactOutput',
+          functionName: "quoteExactOutput",
           args: [
             {
               tokenIn: params.tokenIn,
               tokenOut: params.tokenOut,
               indexPath: params.indexPath.map((i) => i as unknown as number),
               amountOut: params.amountOut,
-              sqrtPriceLimitX96: params.sqrtPriceLimitX96 ?? 0n,
+              sqrtPriceLimitX96,
             },
           ],
         });
         return result.result as bigint;
       } catch (e: any) {
-        console.error('quoteExactOutput error:', e);
-        setQuoteError(e?.shortMessage ?? e?.message ?? 'Quote failed');
+        console.error("quoteExactOutput error:", e);
+        setQuoteError(e?.shortMessage ?? e?.message ?? "Quote failed");
         return null;
       } finally {
         setIsQuoting(false);
@@ -193,7 +233,7 @@ export function useSwap() {
         const allowance = await publicClient.readContract({
           address: tokenAddress,
           abi: ERC20_ABI,
-          functionName: 'allowance',
+          functionName: "allowance",
           args: [userAddress, routerAddress],
         });
         if ((allowance as bigint) >= amount) return true; // 已授权足够，跳过
@@ -202,7 +242,7 @@ export function useSwap() {
         const txHash = await writeContractAsync({
           address: tokenAddress,
           abi: ERC20_ABI,
-          functionName: 'approve',
+          functionName: "approve",
           args: [routerAddress, amount],
         });
 
@@ -210,7 +250,7 @@ export function useSwap() {
         await publicClient.waitForTransactionReceipt({ hash: txHash });
         return true;
       } catch (e) {
-        console.error('approve error:', e);
+        console.error("approve error:", e);
         return false;
       }
     },
@@ -221,13 +261,17 @@ export function useSwap() {
     async (params: {
       tokenIn: `0x${string}`;
       tokenOut: `0x${string}`;
+      pools: PoolInfo[];
       indexPath: number[];
       amountIn: bigint;
       amountOutExpected: bigint;
-      sqrtPriceLimitX96?: bigint;
     }) => {
       if (!userAddress) return;
       const amountOutMinimum = params.amountOutExpected;
+      const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
+        params.pools,
+        params.tokenIn,
+      );
 
       // approve
       const approved = await approveToken(params.tokenIn, params.amountIn);
@@ -236,7 +280,7 @@ export function useSwap() {
       await writeContractAsync({
         address: routerAddress,
         abi: SWAPROUTER_ABI,
-        functionName: 'exactInput',
+        functionName: "exactInput",
         args: [
           {
             tokenIn: params.tokenIn,
@@ -246,7 +290,7 @@ export function useSwap() {
             deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
             amountIn: params.amountIn,
             amountOutMinimum,
-            sqrtPriceLimitX96: params.sqrtPriceLimitX96 ?? 0n,
+            sqrtPriceLimitX96,
           },
         ],
       });
@@ -258,14 +302,18 @@ export function useSwap() {
     async (params: {
       tokenIn: `0x${string}`;
       tokenOut: `0x${string}`;
+      pools: PoolInfo[];
       indexPath: number[];
       amountOut: bigint;
       amountInExpected: bigint;
-      sqrtPriceLimitX96?: bigint;
     }) => {
       if (!userAddress) return;
 
       const amountInMaximum = params.amountInExpected;
+      const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
+        params.pools,
+        params.tokenIn,
+      );
 
       // approve with max amount
       const approved = await approveToken(params.tokenIn, amountInMaximum);
@@ -274,7 +322,7 @@ export function useSwap() {
       await writeContractAsync({
         address: routerAddress,
         abi: SWAPROUTER_ABI,
-        functionName: 'exactOutput',
+        functionName: "exactOutput",
         args: [
           {
             tokenIn: params.tokenIn,
@@ -284,7 +332,7 @@ export function useSwap() {
             deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
             amountOut: params.amountOut,
             amountInMaximum,
-            sqrtPriceLimitX96: params.sqrtPriceLimitX96 ?? 0n,
+            sqrtPriceLimitX96,
           },
         ],
       });

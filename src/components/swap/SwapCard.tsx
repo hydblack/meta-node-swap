@@ -56,6 +56,7 @@ export function SwapCard() {
       const result = await quoteExactInput({
         tokenIn: tokenIn.address,
         tokenOut: tokenOut.address,
+        pools,
         indexPath,
         amountIn: amt,
       });
@@ -63,7 +64,7 @@ export function SwapCard() {
         setAmountOut(formatUnits(result, tokenOut.decimals));
       }
     },
-    [tokenIn, tokenOut, indexPath, quoteExactInput],
+    [tokenIn, tokenOut, pools, indexPath, quoteExactInput],
   );
 
   const runQuoteExactOut = useCallback(
@@ -80,6 +81,7 @@ export function SwapCard() {
       const result = await quoteExactOutput({
         tokenIn: tokenIn.address,
         tokenOut: tokenOut.address,
+        pools,
         indexPath,
         amountOut: amt,
       });
@@ -87,7 +89,7 @@ export function SwapCard() {
         setAmountIn(formatUnits(result, tokenIn.decimals));
       }
     },
-    [tokenIn, tokenOut, indexPath, quoteExactOutput],
+    [tokenIn, tokenOut, pools, indexPath, quoteExactOutput],
   );
 
   const scheduleQuote = useCallback(
@@ -159,6 +161,7 @@ export function SwapCard() {
         await executeExactInput({
           tokenIn: tokenIn.address,
           tokenOut: tokenOut.address,
+          pools,
           indexPath,
           amountIn: aIn,
           amountOutExpected: aOut,
@@ -169,6 +172,7 @@ export function SwapCard() {
         await executeExactOutput({
           tokenIn: tokenIn.address,
           tokenOut: tokenOut.address,
+          pools,
           indexPath,
           amountOut: aOut,
           amountInExpected: aIn,

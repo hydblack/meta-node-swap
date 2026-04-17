@@ -47,3 +47,6 @@ export const FEE_TIERS = [
   { label: "0.30%", value: 3000 },
   { label: "1.00%", value: 10000 },
 ];
+
+export const MIN_SQRT_PRICE = 4295128739n;
+export const MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970342n;

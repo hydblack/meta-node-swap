@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="16" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- 钱包外形 -->
+  <rect x="10" y="20" width="44" height="28" rx="5" fill="white" fill-opacity="0.15" stroke="white" stroke-width="2.5"/>
+  <!-- 钱包翻盖 -->
+  <rect x="10" y="20" width="44" height="10" rx="5" fill="white" fill-opacity="0.25"/>
+  <!-- 锁扣圆圈 -->
+  <circle cx="46" cy="34" r="6" fill="white" fill-opacity="0.3" stroke="white" stroke-width="2"/>
+  <circle cx="46" cy="34" r="2.5" fill="white"/>
+  <!-- M 字母 -->
+  <text x="32" y="47" font-family="Arial,sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">M</text>
+</svg>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectButton } from 'my-web3-connector';
 import { cn } from '../ui/utils';
 
 const navItems = [

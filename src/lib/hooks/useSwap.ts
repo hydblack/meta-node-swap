@@ -3,11 +3,10 @@
 import { useState, useCallback, useMemo } from "react";
 import {
   useReadContract,
-  useWriteContract,
-  useWaitForTransactionReceipt,
   usePublicClient,
   useAccount,
 } from "wagmi";
+import { encodeFunctionData } from "viem";
 import { POOLMANAGER_ABI, SWAPROUTER_ABI, ERC20_ABI } from "../contracts/abis";
 import {
   CONTRACT_ADDRESSES,
@@ -127,19 +126,38 @@ export function useSwap() {
 
   const [isQuoting, setIsQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-
-  const {
-    writeContractAsync,
-    data: hash,
-    isPending,
-    error: writeError,
-    reset,
-  } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [swapError, setSwapError] = useState<Error | null>(null);
 
   const routerAddress = CONTRACT_ADDRESSES.SwapRouter;
+
+  const reset = useCallback(() => {
+    setTxHash(null);
+    setIsPending(false);
+    setIsConfirming(false);
+    setIsSuccess(false);
+    setSwapError(null);
+  }, []);
+
+  /** 等待交易上链确认 */
+  const waitForReceipt = useCallback(
+    async (hash: `0x${string}`) => {
+      if (!publicClient) return;
+      setIsConfirming(true);
+      try {
+        await publicClient.waitForTransactionReceipt({ hash });
+        setIsSuccess(true);
+      } catch (e) {
+        console.error("waitForTransactionReceipt error:", e);
+      } finally {
+        setIsConfirming(false);
+      }
+    },
+    [publicClient],
+  );
 
   const quoteExactInput = useCallback(
     async (params: {
@@ -228,33 +246,45 @@ export function useSwap() {
   const approveToken = useCallback(
     async (tokenAddress: `0x${string}`, amount: bigint): Promise<boolean> => {
       try {
-        // 1. 先查当前 allowance
         if (!publicClient || !userAddress) return false;
+
+        // 1. 查当前 allowance
         const allowance = await publicClient.readContract({
           address: tokenAddress,
           abi: ERC20_ABI,
           functionName: "allowance",
           args: [userAddress, routerAddress],
         });
-        if ((allowance as bigint) >= amount) return true; // 已授权足够，跳过
+        if ((allowance as bigint) >= amount) return true;
 
-        // 2. 发起 approve 交易
-        const txHash = await writeContractAsync({
-          address: tokenAddress,
+        // 2. 通过 myWallet 发起 approve
+        if (!window.myWallet) {
+          console.error("myWallet 未注入");
+          return false;
+        }
+
+        const approveData = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "approve",
           args: [routerAddress, amount],
         });
 
+        const approveHash = await window.myWallet.sendTransaction({
+          to: tokenAddress,
+          data: approveData,
+        });
+
         // 3. 等待确认
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        await publicClient.waitForTransactionReceipt({
+          hash: approveHash as `0x${string}`,
+        });
         return true;
       } catch (e) {
         console.error("approve error:", e);
         return false;
       }
     },
-    [publicClient, userAddress, routerAddress, writeContractAsync],
+    [publicClient, userAddress, routerAddress],
   );
 
   const executeExactInput = useCallback(
@@ -267,6 +297,11 @@ export function useSwap() {
       amountOutExpected: bigint;
     }) => {
       if (!userAddress) return;
+      if (!window.myWallet) {
+        console.error("myWallet 未注入");
+        return;
+      }
+
       const amountOutMinimum = params.amountOutExpected;
       const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
         params.pools,
@@ -277,25 +312,41 @@ export function useSwap() {
       const approved = await approveToken(params.tokenIn, params.amountIn);
       if (!approved) return;
 
-      await writeContractAsync({
-        address: routerAddress,
-        abi: SWAPROUTER_ABI,
-        functionName: "exactInput",
-        args: [
-          {
-            tokenIn: params.tokenIn,
-            tokenOut: params.tokenOut,
-            indexPath: params.indexPath as unknown as readonly number[],
-            recipient: userAddress,
-            deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
-            amountIn: params.amountIn,
-            amountOutMinimum,
-            sqrtPriceLimitX96,
-          },
-        ],
-      });
+      setIsPending(true);
+      try {
+        const swapData = encodeFunctionData({
+          abi: SWAPROUTER_ABI,
+          functionName: "exactInput",
+          args: [
+            {
+              tokenIn: params.tokenIn,
+              tokenOut: params.tokenOut,
+              indexPath: params.indexPath as unknown as readonly number[],
+              recipient: userAddress,
+              deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
+              amountIn: params.amountIn,
+              amountOutMinimum,
+              sqrtPriceLimitX96,
+            },
+          ],
+        });
+
+        const hash = await window.myWallet.sendTransaction({
+          to: routerAddress,
+          data: swapData,
+        });
+
+        setTxHash(hash as `0x${string}`);
+        await waitForReceipt(hash as `0x${string}`);
+      } catch (e) {
+        console.error("executeExactInput error:", e);
+        setSwapError(e as Error);
+        throw e;
+      } finally {
+        setIsPending(false);
+      }
     },
-    [userAddress, routerAddress, approveToken, writeContractAsync],
+    [userAddress, routerAddress, approveToken, waitForReceipt],
   );
 
   const executeExactOutput = useCallback(
@@ -308,6 +359,10 @@ export function useSwap() {
       amountInExpected: bigint;
     }) => {
       if (!userAddress) return;
+      if (!window.myWallet) {
+        console.error("myWallet 未注入");
+        return;
+      }
 
       const amountInMaximum = params.amountInExpected;
       const sqrtPriceLimitX96 = resolveSqrtPriceLimit(
@@ -319,25 +374,41 @@ export function useSwap() {
       const approved = await approveToken(params.tokenIn, amountInMaximum);
       if (!approved) return;
 
-      await writeContractAsync({
-        address: routerAddress,
-        abi: SWAPROUTER_ABI,
-        functionName: "exactOutput",
-        args: [
-          {
-            tokenIn: params.tokenIn,
-            tokenOut: params.tokenOut,
-            indexPath: params.indexPath as unknown as readonly number[],
-            recipient: userAddress,
-            deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
-            amountOut: params.amountOut,
-            amountInMaximum,
-            sqrtPriceLimitX96,
-          },
-        ],
-      });
+      setIsPending(true);
+      try {
+        const swapData = encodeFunctionData({
+          abi: SWAPROUTER_ABI,
+          functionName: "exactOutput",
+          args: [
+            {
+              tokenIn: params.tokenIn,
+              tokenOut: params.tokenOut,
+              indexPath: params.indexPath as unknown as readonly number[],
+              recipient: userAddress,
+              deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
+              amountOut: params.amountOut,
+              amountInMaximum,
+              sqrtPriceLimitX96,
+            },
+          ],
+        });
+
+        const hash = await window.myWallet.sendTransaction({
+          to: routerAddress,
+          data: swapData,
+        });
+
+        setTxHash(hash as `0x${string}`);
+        await waitForReceipt(hash as `0x${string}`);
+      } catch (e) {
+        console.error("executeExactOutput error:", e);
+        setSwapError(e as Error);
+        throw e;
+      } finally {
+        setIsPending(false);
+      }
     },
-    [userAddress, routerAddress, approveToken, writeContractAsync],
+    [userAddress, routerAddress, approveToken, waitForReceipt],
   );
 
   return {
@@ -350,8 +421,9 @@ export function useSwap() {
     isPending,
     isConfirming,
     isSuccess,
-    error: writeError,
-    hash,
+    error: swapError,
+    hash: txHash,
+    txHash,
     reset,
   };
 }
